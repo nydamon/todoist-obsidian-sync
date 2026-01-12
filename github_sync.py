@@ -37,7 +37,7 @@ def _timestamp_to_youtube_link(text: str, video_url: str) -> str:
         else:
             return match.group(0)
 
-        return f"[[{timestamp}](https://youtube.com/watch?v={video_id}&t={seconds}s)]"
+        return f"[{timestamp}](https://youtube.com/watch?v={video_id}&t={seconds}s)"
 
     # Match [MM:SS] or [H:MM:SS] patterns
     return re.sub(r'\[(\d{1,2}:\d{2}(?::\d{2})?)\]', replace_timestamp, text)
@@ -91,7 +91,7 @@ class ObsidianGitHub:
         folder_path = self._get_folder_path(project_name, parent_project)
         
         # Generate clean filename (no emojis - use Supercharged Links for visual indicators)
-        date_prefix = datetime.now().strftime("%Y-%m-%d")
+        date_prefix = datetime.now().strftime("%Y-%m-%d-%H%M")
         slug = self._slugify(summary.title)
         filename = f"{date_prefix}-{slug}.md"
         file_path = f"{folder_path}/{filename}"
