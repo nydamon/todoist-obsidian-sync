@@ -313,24 +313,33 @@ Respond in this exact JSON format:
                 video_id = youtube_url.split('youtu.be/')[-1].split('?')[0]
                 full_youtube_url = f'https://www.youtube.com/watch?v={video_id}'
 
-            prompt = """Analyze this YouTube video and provide:
-1. The exact video title
-2. The channel name
-3. A detailed 3-4 sentence summary of the main content
-4. 5-7 key points or takeaways with links if the video references external resources
+            prompt = """## ROLE
+You are a Multimodal Analysis Engine dissecting video content into structured, actionable insights.
 
-IMPORTANT: For key_points, if the video mentions or links to articles, tools, resources, or other videos, include them inline using markdown format. Example:
-- Key point about topic [→](https://example.com/resource)
-- Another point without a link
+## PRINCIPLES
+1. TRUTHFULNESS: Only report what is explicitly stated or shown. If a detail is missing, state "Not mentioned."
+2. EVIDENCE: Always include timestamps in [MM:SS] format for any claim or feature.
+3. SCANNABILITY: Be concise and use clear structure.
+
+## TASK
+Analyze this video and extract:
+1. The exact video title and channel name
+2. An executive brief (2-3 sentences on the video's core purpose and "why")
+3. Strategic stages/chapters with timestamps
+4. Key technical details, specs, or actionable steps mentioned
 
 Respond in this exact JSON format:
 {
-    "title": "...",
-    "channel": "...",
-    "summary": "...",
-    "key_points": ["Point with link [→](url)", "Point without link", "..."],
-    "duration": "if known"
-}"""
+    "title": "Exact video title",
+    "channel": "Channel name",
+    "summary": "2-3 sentence executive brief on purpose and key takeaway",
+    "stages": ["[MM:SS] Stage title: Brief description", "..."],
+    "key_points": ["[MM:SS] Technical detail, spec, or actionable step", "..."],
+    "duration": "HH:MM:SS if shown",
+    "critical_notes": "Any gotchas, limitations, or differentiators mentioned (or null)"
+}
+
+IMPORTANT: Include external resource links inline if mentioned: [→](https://example.com)"""
 
             async with httpx.AsyncClient() as client:
                 response = await client.post(
@@ -403,6 +412,8 @@ Respond in this exact JSON format:
                 "video_title": video_title,
                 "video_channel": channel,
                 "video_duration": video_result.get("duration"),
+                "stages": video_result.get("stages", []),
+                "critical_notes": video_result.get("critical_notes"),
                 "has_embedded_video": True
             }
         )
@@ -415,24 +426,33 @@ Respond in this exact JSON format:
             video_id = url.split('youtu.be/')[-1].split('?')[0]
             full_youtube_url = f'https://www.youtube.com/watch?v={video_id}'
 
-        prompt = """Analyze this YouTube video and provide:
-1. The exact video title
-2. The channel name
-3. A 2-3 sentence summary of the content
-4. 3-5 key points as bullet points with links if the video references external resources
+        prompt = """## ROLE
+You are a Multimodal Analysis Engine dissecting video content into structured, actionable insights.
 
-IMPORTANT: For key_points, if the video mentions or links to articles, tools, resources, or other videos, include them inline using markdown format. Example:
-- Key point about topic [→](https://example.com/resource)
-- Another point without a link
+## PRINCIPLES
+1. TRUTHFULNESS: Only report what is explicitly stated or shown. If a detail is missing, state "Not mentioned."
+2. EVIDENCE: Always include timestamps in [MM:SS] format for any claim or feature.
+3. SCANNABILITY: Be concise and use clear structure.
+
+## TASK
+Analyze this video and extract:
+1. The exact video title and channel name
+2. An executive brief (2-3 sentences on the video's core purpose and "why")
+3. Strategic stages/chapters with timestamps
+4. Key technical details, specs, or actionable steps mentioned
 
 Respond in this exact JSON format:
 {
-    "title": "...",
-    "channel": "...",
-    "summary": "...",
-    "key_points": ["Point with link [→](url)", "Point without link", "..."],
-    "duration": "if known"
-}"""
+    "title": "Exact video title",
+    "channel": "Channel name",
+    "summary": "2-3 sentence executive brief on purpose and key takeaway",
+    "stages": ["[MM:SS] Stage title: Brief description", "..."],
+    "key_points": ["[MM:SS] Technical detail, spec, or actionable step", "..."],
+    "duration": "HH:MM:SS if shown",
+    "critical_notes": "Any gotchas, limitations, or differentiators mentioned (or null)"
+}
+
+IMPORTANT: Include external resource links inline if mentioned: [→](https://example.com)"""
 
         async with httpx.AsyncClient() as client:
             response = await client.post(
@@ -463,7 +483,9 @@ Respond in this exact JSON format:
                 source_url=url,
                 extra_metadata={
                     "channel": parsed.get("channel"),
-                    "duration": parsed.get("duration")
+                    "duration": parsed.get("duration"),
+                    "stages": parsed.get("stages", []),
+                    "critical_notes": parsed.get("critical_notes")
                 }
             )
 

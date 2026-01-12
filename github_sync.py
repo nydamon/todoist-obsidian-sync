@@ -113,17 +113,46 @@ type: {summary.url_type.value}
         
         # Title
         content = f"# 🆕 {summary.title}\n\n"
-        
+
+        # Embed video if present (for X+YouTube or standalone YouTube)
+        video_url = summary.extra_metadata.get("video_url")
+        if not video_url and summary.url_type.value == "youtube":
+            video_url = summary.source_url
+
+        if video_url:
+            # Extract video ID and create embed
+            video_id = None
+            if 'youtu.be/' in video_url:
+                video_id = video_url.split('youtu.be/')[-1].split('?')[0]
+            elif 'youtube.com/watch?v=' in video_url:
+                video_id = video_url.split('v=')[-1].split('&')[0]
+
+            if video_id:
+                content += f'<iframe width="560" height="315" src="https://www.youtube.com/embed/{video_id}" frameborder="0" allowfullscreen></iframe>\n\n'
+
         # Summary
         content += f"## Summary\n\n{summary.summary}\n\n"
         
+        # Video Stages (chapters with timestamps)
+        stages = summary.extra_metadata.get("stages", [])
+        if stages:
+            content += "## Video Chapters\n\n"
+            for stage in stages:
+                content += f"- {stage}\n"
+            content += "\n"
+
         # Key Points
         if summary.key_points:
             content += "## Key Points\n\n"
             for point in summary.key_points:
                 content += f"- {point}\n"
             content += "\n"
-        
+
+        # Critical Notes (gotchas, limitations)
+        critical_notes = summary.extra_metadata.get("critical_notes")
+        if critical_notes and critical_notes != "null":
+            content += f"## Critical Notes\n\n{critical_notes}\n\n"
+
         # Source link
         content += f"## Source\n\n[Original]({summary.source_url})\n"
         
