@@ -211,6 +211,23 @@ async def health():
     return {"status": "healthy"}
 
 
+@app.get("/oauth/callback")
+async def oauth_callback(code: str = None, state: str = None, error: str = None):
+    """OAuth callback endpoint - just confirms authorization was successful"""
+    if error:
+        return {"status": "error", "message": error}
+
+    if code:
+        # We don't need to exchange the code - just completing OAuth activates webhooks
+        return {
+            "status": "success",
+            "message": "Authorization complete! Webhooks are now active for your account.",
+            "code_received": True
+        }
+
+    return {"status": "waiting", "message": "No authorization code received"}
+
+
 @app.post("/test/summarize")
 async def test_summarize(url: str):
     """Test endpoint to summarize a URL"""

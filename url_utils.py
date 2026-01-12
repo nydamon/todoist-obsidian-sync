@@ -3,6 +3,7 @@ URL detection and routing utilities
 """
 import re
 from enum import Enum
+from typing import Optional
 
 
 class URLType(Enum):
@@ -37,7 +38,7 @@ def detect_url_type(url: str) -> URLType:
     return URLType.ARTICLE
 
 
-def extract_url_from_text(text: str) -> str | None:
+def extract_url_from_text(text: str) -> Optional[str]:
     """Extract first URL from text"""
     url_pattern = r'https?://[^\s<>"{}|\\^`\[\]]+'
     match = re.search(url_pattern, text)

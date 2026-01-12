@@ -3,6 +3,7 @@ AI Summarization using multiple models based on URL type
 """
 import httpx
 import os
+from typing import List, Dict
 from dataclasses import dataclass
 from url_utils import URLType
 
@@ -11,7 +12,7 @@ from url_utils import URLType
 class SummaryResult:
     title: str
     summary: str
-    key_points: list[str]
+    key_points: List[str]
     url_type: URLType
     source_url: str
     extra_metadata: dict = None
@@ -26,8 +27,8 @@ class ResearchResult:
     """For @note tasks without URLs - generates research starter"""
     title: str
     summary: str
-    key_points: list[str]
-    suggestions: list[str]
+    key_points: List[str]
+    suggestions: List[str]
     extra_metadata: dict = None
 
     def __post_init__(self):

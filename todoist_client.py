@@ -2,6 +2,7 @@
 Todoist API integration
 """
 import os
+from typing import Optional, List
 from todoist_api_python.api import TodoistAPI
 from dataclasses import dataclass
 
@@ -10,8 +11,8 @@ from dataclasses import dataclass
 class TodoistProject:
     id: str
     name: str
-    parent_id: str | None = None
-    parent_name: str | None = None
+    parent_id: Optional[str] = None
+    parent_name: Optional[str] = None
 
 
 @dataclass 
@@ -21,9 +22,9 @@ class TodoistTask:
     description: str
     project_id: str
     project_name: str
-    parent_project_name: str | None = None
+    parent_project_name: Optional[str] = None
     priority: int = 4  # Todoist: 1=urgent, 4=default
-    labels: list[str] = None
+    labels: List[str] = None
     
     def __post_init__(self):
         if self.labels is None:
@@ -39,10 +40,16 @@ class TodoistClient:
     
     def _refresh_projects(self):
         """Cache all projects with their hierarchy"""
-        projects = self.api.get_projects()
-        
+        # Handle paginated results from Todoist API v3
+        all_projects = []
+        for page in self.api.get_projects():
+            if isinstance(page, list):
+                all_projects.extend(page)
+            else:
+                all_projects.append(page)
+
         # First pass: cache all projects
-        for p in projects:
+        for p in all_projects:
             self._project_cache[p.id] = {
                 "name": p.name,
                 "parent_id": p.parent_id
@@ -64,7 +71,7 @@ class TodoistClient:
         """Get set of project names that have children (root folders)"""
         return self._root_folders.copy()
     
-    def get_project(self, project_id: str) -> TodoistProject | None:
+    def get_project(self, project_id: str) -> Optional[TodoistProject]:
         """Get project by ID"""
         if project_id not in self._project_cache:
             self._refresh_projects()
@@ -80,7 +87,7 @@ class TodoistClient:
             parent_name=pdata.get("parent_name")
         )
     
-    def get_all_projects(self) -> list[TodoistProject]:
+    def get_all_projects(self) -> List[TodoistProject]:
         """Get all projects"""
         self._refresh_projects()
         return [
@@ -93,7 +100,7 @@ class TodoistClient:
             for pid, pdata in self._project_cache.items()
         ]
     
-    def get_task(self, task_id: str) -> TodoistTask | None:
+    def get_task(self, task_id: str) -> Optional[TodoistTask]:
         """Get task by ID"""
         try:
             task = self.api.get_task(task_id)
@@ -122,7 +129,7 @@ class TodoistClient:
             print(f"Error completing task: {e}")
             return False
     
-    def create_project(self, name: str, parent_id: str = None) -> str | None:
+    def create_project(self, name: str, parent_id: str = None) -> Optional[str]:
         """Create a new project"""
         try:
             project = self.api.add_project(name=name, parent_id=parent_id)
