@@ -42,6 +42,31 @@ class ResearchResult:
             self.extra_metadata = {}
 
 
+# Shared prompt for YouTube video analysis (used by both standalone and X+video flows)
+YOUTUBE_ANALYSIS_PROMPT = """Analyze this YouTube video.
+
+CRITICAL: You MUST extract the actual video title and channel name visible on the YouTube page.
+Do NOT say "Not mentioned" - these are always visible on YouTube.
+
+Provide:
+1. title - The exact video title from YouTube
+2. channel - The channel/creator name from YouTube
+3. summary - 2-3 sentence overview of the video's message
+4. key_points - 5-7 key insights with [MM:SS] or [H:MM:SS] timestamps at the start
+5. duration - Video length (e.g., "12:34" or "1:23:45" for longer videos)
+
+If external resources are mentioned, include links: [→](https://url)
+
+JSON format:
+{
+    "title": "Exact video title from YouTube",
+    "channel": "Channel name from YouTube",
+    "summary": "...",
+    "key_points": ["[02:15] Key point", "[05:30] Another point", "..."],
+    "duration": "MM:SS or H:MM:SS"
+}"""
+
+
 class AISummarizer:
     def __init__(self):
         self.xai_key = os.getenv("XAI_API_KEY")
@@ -313,29 +338,6 @@ Respond in this exact JSON format:
                 video_id = youtube_url.split('youtu.be/')[-1].split('?')[0]
                 full_youtube_url = f'https://www.youtube.com/watch?v={video_id}'
 
-            prompt = """Analyze this YouTube video.
-
-CRITICAL: You MUST extract the actual video title and channel name visible on the YouTube page.
-Do NOT say "Not mentioned" - these are always visible on YouTube.
-
-Provide:
-1. title - The exact video title from YouTube
-2. channel - The channel/creator name from YouTube
-3. summary - 2-3 sentence overview of the video's message
-4. key_points - 5-7 key insights with [MM:SS] timestamps at the start
-5. duration - Video length (e.g., "36:13")
-
-If external resources are mentioned, include links: [→](https://url)
-
-JSON format:
-{
-    "title": "Exact video title from YouTube",
-    "channel": "Channel name from YouTube",
-    "summary": "...",
-    "key_points": ["[02:15] Key point", "[05:30] Another point", "..."],
-    "duration": "MM:SS"
-}"""
-
             async with httpx.AsyncClient() as client:
                 response = await client.post(
                     f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key={self.google_api_key}",
@@ -343,7 +345,7 @@ JSON format:
                     json={
                         "contents": [{
                             "parts": [
-                                {"text": prompt},
+                                {"text": YOUTUBE_ANALYSIS_PROMPT},
                                 {"file_data": {"file_uri": full_youtube_url}}
                             ]
                         }],
@@ -419,29 +421,6 @@ JSON format:
             video_id = url.split('youtu.be/')[-1].split('?')[0]
             full_youtube_url = f'https://www.youtube.com/watch?v={video_id}'
 
-        prompt = """Analyze this YouTube video.
-
-CRITICAL: You MUST extract the actual video title and channel name visible on the YouTube page.
-Do NOT say "Not mentioned" - these are always visible on YouTube.
-
-Provide:
-1. title - The exact video title from YouTube
-2. channel - The channel/creator name from YouTube
-3. summary - 2-3 sentence overview of the video's message
-4. key_points - 5-7 key insights with [MM:SS] timestamps at the start
-5. duration - Video length (e.g., "36:13")
-
-If external resources are mentioned, include links: [→](https://url)
-
-JSON format:
-{
-    "title": "Exact video title from YouTube",
-    "channel": "Channel name from YouTube",
-    "summary": "...",
-    "key_points": ["[02:15] Key point", "[05:30] Another point", "..."],
-    "duration": "MM:SS"
-}"""
-
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key={self.google_api_key}",
@@ -449,7 +428,7 @@ JSON format:
                 json={
                     "contents": [{
                         "parts": [
-                            {"text": prompt},
+                            {"text": YOUTUBE_ANALYSIS_PROMPT},
                             {"file_data": {"file_uri": full_youtube_url}}
                         ]
                     }],
