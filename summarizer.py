@@ -194,9 +194,54 @@ Respond in this exact JSON format:
                 }
             )
 
+    async def _fetch_article_content(self, url: str) -> str:
+        """Fetch article content using Jina Reader for clean markdown"""
+        jina_url = f"https://r.jina.ai/{url}"
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    jina_url,
+                    headers={"Accept": "text/markdown"},
+                    timeout=30.0,
+                    follow_redirects=True
+                )
+                if response.status_code == 200:
+                    content = response.text
+                    # Truncate if too long (keep first ~15k chars for context window)
+                    if len(content) > 15000:
+                        content = content[:15000] + "\n\n[Content truncated...]"
+                    return content
+        except Exception as e:
+            print(f"Jina Reader fetch failed: {e}")
+        return ""
+
     async def _summarize_article(self, url: str) -> SummaryResult:
         """Use Claude Sonnet 4.5 via OpenRouter for articles"""
-        prompt = f"""Analyze this article/webpage and provide:
+        # Fetch actual article content first
+        article_content = await self._fetch_article_content(url)
+
+        if article_content:
+            prompt = f"""Analyze this article and provide:
+1. A concise title (max 10 words)
+2. A 2-3 sentence summary
+3. 3-5 key points as bullet points
+
+Article URL: {url}
+
+Article Content:
+{article_content}
+
+Respond in this exact JSON format:
+{{
+    "title": "...",
+    "summary": "...",
+    "key_points": ["...", "...", "..."],
+    "author": "if known",
+    "publication": "if known"
+}}"""
+        else:
+            # Fallback if content fetch fails
+            prompt = f"""Analyze this article/webpage and provide:
 1. A concise title (max 10 words)
 2. A 2-3 sentence summary
 3. 3-5 key points as bullet points
