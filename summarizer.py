@@ -269,9 +269,10 @@ Respond in JSON format:
         async def grok_x_context():
             """Get X thread context from Grok"""
             prompt = f"""Analyze this X/Twitter post that shares a video. Focus on:
-1. Who is sharing this and why
-2. What context or commentary they provide
-3. Why they think this video is worth watching
+1. A concise title (max 10 words) capturing what the POSTER is saying about the video
+2. Who is sharing this and why
+3. What context or commentary they provide
+4. Why they think this video is worth watching
 
 X Post URL: {x_url}
 
@@ -280,6 +281,7 @@ Post Content:
 
 Respond in this exact JSON format:
 {{
+    "title": "Concise title based on what the poster says (not the video title)",
     "poster_context": "What the poster says about the video and why they're sharing it",
     "author": "@handle",
     "thread_date": "YYYY-MM-DD if known"
@@ -367,13 +369,14 @@ Respond in this exact JSON format:
             video_result = {}
 
         # Merge results into comprehensive summary
+        x_title = x_result.get("title", "")
         video_title = video_result.get("title", "Video")
         channel = video_result.get("channel", "Unknown")
         poster_context = x_result.get("poster_context", "")
         video_summary = video_result.get("summary", "")
 
-        # Combined title emphasizing video content
-        merged_title = video_title if video_title != "Video" else "Shared Video"
+        # Use X post title (what the poster says), fallback to video title
+        merged_title = x_title if x_title else (video_title if video_title != "Video" else "Shared Video")
 
         # Combined summary: X context + video content
         merged_summary = ""
@@ -397,6 +400,7 @@ Respond in this exact JSON format:
                 "author": x_result.get("author"),
                 "thread_date": x_result.get("thread_date"),
                 "video_url": youtube_url,
+                "video_title": video_title,
                 "video_channel": channel,
                 "video_duration": video_result.get("duration"),
                 "has_embedded_video": True
