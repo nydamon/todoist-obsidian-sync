@@ -14,6 +14,7 @@ from github_sync import ObsidianGitHub
 from todoist_client import TodoistClient
 from error_logger import log_error
 from logger import get_logger
+from notifier import notify_success, notify_failure
 
 logger = get_logger(__name__)
 
@@ -45,6 +46,10 @@ async def process_new_task(task_id: str):
             error_message=f"Could not retrieve task from Todoist",
             context={"task_id": task_id}
         )
+        await notify_failure(
+            error_type="Task Not Found",
+            message=f"Could not retrieve task {task_id} from Todoist"
+        )
         logger.warning(f"Task {task_id} not found")
         return
     
@@ -75,6 +80,7 @@ async def process_new_task(task_id: str):
                 priority=task.priority
             )
             logger.info(f"Created research note: {file_path}")
+            await notify_success(title=research.title, note_path=file_path)
         except Exception as e:
             log_error(
                 error_type="Research Note Failed",
@@ -86,6 +92,10 @@ async def process_new_task(task_id: str):
                     "parent_project": task.parent_project_name
                 },
                 exception=e
+            )
+            await notify_failure(
+                error_type="Research Note Failed",
+                message=f"{task.content[:100]}: {str(e)[:150]}"
             )
             logger.error(f"Error creating research note: {e}")
         return
@@ -113,6 +123,11 @@ async def process_new_task(task_id: str):
             },
             exception=e
         )
+        await notify_failure(
+            error_type="Summarization Failed",
+            message=f"{url[:100]}: {str(e)[:150]}",
+            url=url
+        )
         logger.error(f"Error summarizing: {e}")
         return
     
@@ -126,6 +141,7 @@ async def process_new_task(task_id: str):
             priority=task.priority
         )
         logger.info(f"Created note: {file_path}")
+        await notify_success(title=summary.title, note_path=file_path)
     except Exception as e:
         log_error(
             error_type="Note Creation Failed",
@@ -137,6 +153,11 @@ async def process_new_task(task_id: str):
                 "project": task.project_name
             },
             exception=e
+        )
+        await notify_failure(
+            error_type="Note Creation Failed",
+            message=f"{summary.title[:100]}: {str(e)[:150]}",
+            url=url
         )
         logger.error(f"Error creating note: {e}")
         return
