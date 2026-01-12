@@ -13,6 +13,7 @@ from logger import get_logger
 logger = get_logger(__name__)
 
 
+
 @dataclass
 class SummaryResult:
     title: str
@@ -124,11 +125,69 @@ class AISummarizer:
 
         return ""
 
+    def _extract_youtube_urls(self, content: str) -> List[str]:
+        """Extract YouTube URLs from content"""
+        youtube_urls = []
+
+        # Full URL patterns (return complete URL)
+        full_url_patterns = [
+            r'https?://(?:www\.)?youtube\.com/watch\?v=[\w-]+',
+            r'https?://(?:www\.)?youtu\.be/[\w-]+',
+            r'https?://m\.youtube\.com/watch\?v=[\w-]+',
+        ]
+
+        # Patterns that capture video ID (need to reconstruct URL)
+        video_id_patterns = [
+            (r'(?<![/\w])youtu\.be/([\w-]+)', 'https://youtu.be/{}'),
+            (r'(?<![/\w])youtube\.com/watch\?v=([\w-]+)', 'https://youtube.com/watch?v={}'),
+        ]
+
+        # Extract full URLs
+        for pattern in full_url_patterns:
+            matches = re.findall(pattern, content)
+            youtube_urls.extend(matches)
+
+        # Extract video IDs and reconstruct URLs
+        for pattern, url_template in video_id_patterns:
+            matches = re.findall(pattern, content)
+            for video_id in matches:
+                youtube_urls.append(url_template.format(video_id))
+
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_urls = []
+        for url in youtube_urls:
+            # Normalize to compare
+            normalized = url.replace('www.', '').replace('http://', 'https://')
+            if normalized not in seen:
+                seen.add(normalized)
+                unique_urls.append(url)
+
+        logger.debug(f"Extracted {len(unique_urls)} YouTube URLs from content")
+        return unique_urls
+
     async def _summarize_x_thread(self, url: str) -> SummaryResult:
-        """Use Grok to analyze pre-fetched X/Twitter thread content"""
+        """Use Grok to analyze pre-fetched X/Twitter thread content.
+
+        If the thread contains YouTube links, runs parallel Gemini analysis
+        and merges results for a comprehensive summary.
+        """
         # Fetch thread content first via Jina Reader
         thread_content = await self._fetch_x_thread_content(url)
 
+        # Check for embedded YouTube links
+        youtube_urls = self._extract_youtube_urls(thread_content) if thread_content else []
+
+        if youtube_urls:
+            logger.info(f"X thread contains {len(youtube_urls)} YouTube URL(s), running parallel analysis")
+            # Run Grok (X context) and Gemini (video content) in parallel
+            return await self._summarize_x_thread_with_video(url, thread_content, youtube_urls[0])
+
+        # Standard X-only summarization
+        return await self._summarize_x_thread_only(url, thread_content)
+
+    async def _summarize_x_thread_only(self, url: str, thread_content: str) -> SummaryResult:
+        """Summarize X thread without embedded video (Grok only)"""
         if thread_content:
             prompt = f"""Analyze this X/Twitter post and provide:
 1. A concise title (max 10 words) capturing the main topic
@@ -202,6 +261,140 @@ Respond in JSON format:
                     "thread_date": parsed.get("thread_date")
                 }
             )
+
+    async def _summarize_x_thread_with_video(self, x_url: str, thread_content: str, youtube_url: str) -> SummaryResult:
+        """Parallel summarization: Grok for X context + Gemini for video content"""
+
+        async def grok_x_context():
+            """Get X thread context from Grok"""
+            prompt = f"""Analyze this X/Twitter post that shares a video. Focus on:
+1. Who is sharing this and why
+2. What context or commentary they provide
+3. Why they think this video is worth watching
+
+X Post URL: {x_url}
+
+Post Content:
+{thread_content}
+
+Respond in this exact JSON format:
+{{
+    "poster_context": "What the poster says about the video and why they're sharing it",
+    "author": "@handle",
+    "thread_date": "YYYY-MM-DD if known"
+}}"""
+
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    "https://api.x.ai/v1/chat/completions",
+                    headers={
+                        "Content-Type": "application/json",
+                        "Authorization": f"Bearer {self.xai_key}"
+                    },
+                    json={
+                        "model": "grok-3-fast",
+                        "messages": [{"role": "user", "content": prompt}],
+                        "temperature": 0.3
+                    },
+                    timeout=60.0
+                )
+                response.raise_for_status()
+                data = response.json()
+                return self._parse_json_response(data["choices"][0]["message"]["content"])
+
+        async def gemini_video_content():
+            """Get video analysis from Gemini"""
+            prompt = f"""Analyze this YouTube video and provide:
+1. The exact video title
+2. The channel name
+3. A detailed 3-4 sentence summary of the main content
+4. 5-7 key points or takeaways with links if the video references external resources
+
+Video URL: {youtube_url}
+
+IMPORTANT: For key_points, if the video mentions or links to articles, tools, resources, or other videos, include them inline using markdown format. Example:
+- Key point about topic [→](https://example.com/resource)
+- Another point without a link
+
+Respond in this exact JSON format:
+{{
+    "title": "...",
+    "channel": "...",
+    "summary": "...",
+    "key_points": ["Point with link [→](url)", "Point without link", "..."],
+    "duration": "if known"
+}}"""
+
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    "https://openrouter.ai/api/v1/chat/completions",
+                    headers={
+                        "Content-Type": "application/json",
+                        "Authorization": f"Bearer {self.openrouter_key}"
+                    },
+                    json={
+                        "model": "google/gemini-3-flash-preview",
+                        "messages": [{"role": "user", "content": prompt}],
+                        "temperature": 0.3
+                    },
+                    timeout=90.0  # Longer timeout for video analysis
+                )
+                response.raise_for_status()
+                data = response.json()
+                return self._parse_json_response(data["choices"][0]["message"]["content"])
+
+        # Run both in parallel
+        logger.debug("Running parallel Grok + Gemini analysis")
+        x_result, video_result = await asyncio.gather(
+            grok_x_context(),
+            gemini_video_content(),
+            return_exceptions=True
+        )
+
+        # Handle exceptions from parallel execution
+        if isinstance(x_result, Exception):
+            logger.error(f"Grok X context failed: {x_result}")
+            x_result = {}
+        if isinstance(video_result, Exception):
+            logger.error(f"Gemini video analysis failed: {video_result}")
+            video_result = {}
+
+        # Merge results into comprehensive summary
+        video_title = video_result.get("title", "Video")
+        channel = video_result.get("channel", "Unknown")
+        poster_context = x_result.get("poster_context", "")
+        video_summary = video_result.get("summary", "")
+
+        # Combined title emphasizing video content
+        merged_title = video_title if video_title != "Video" else "Shared Video"
+
+        # Combined summary: X context + video content
+        merged_summary = ""
+        if poster_context:
+            merged_summary += f"**Shared by {x_result.get('author', 'user')}:** {poster_context}\n\n"
+        if video_summary:
+            merged_summary += f"**Video ({channel}):** {video_summary}"
+
+        # Combine key points from video
+        merged_key_points = video_result.get("key_points", [])
+
+        logger.info(f"Merged X+Video summary: {merged_title}")
+
+        return SummaryResult(
+            title=merged_title,
+            summary=merged_summary.strip(),
+            key_points=merged_key_points,
+            url_type=URLType.X_TWITTER,  # Primary URL type is still X
+            source_url=x_url,
+            extra_metadata={
+                "author": x_result.get("author"),
+                "thread_date": x_result.get("thread_date"),
+                "video_url": youtube_url,
+                "video_channel": channel,
+                "video_duration": video_result.get("duration"),
+                "has_embedded_video": True
+            }
+        )
 
     async def _summarize_youtube(self, url: str) -> SummaryResult:
         """Use Gemini 3 Flash via OpenRouter for YouTube videos"""
