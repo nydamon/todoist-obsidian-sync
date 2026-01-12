@@ -282,6 +282,7 @@ async def test_create_note(url: str, project: str = "Inbox", parent: str = None,
         parent_project=parent,
         priority=priority
     )
+    await notify_success(title=summary.title, note_path=file_path)
     return {
         "file_path": file_path,
         "title": summary.title
