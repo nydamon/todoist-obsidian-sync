@@ -22,12 +22,11 @@ class ErrorLogger:
         """Create an error note in the vault"""
         
         timestamp = datetime.now()
-        date_str = timestamp.strftime("%Y-%m-%d")
-        time_str = timestamp.strftime("%H-%M-%S")
-        
+        datetime_str = timestamp.strftime("%y-%m-%d-%H%M")  # 26-01-12-1430
+
         # Generate filename
         slug = error_type.lower().replace(" ", "-").replace("_", "-")[:30]
-        filename = f"{date_str}-{time_str}-{slug}.md"
+        filename = f"{datetime_str}-{slug}.md"
         file_path = f"{self.error_folder}/{filename}"
         
         # Build content
