@@ -97,16 +97,50 @@ class AISummarizer:
         else:
             return await self._summarize_article(url)
     
+    async def _fetch_x_thread_content(self, url: str) -> str:
+        """Fetch X/Twitter thread content using Jina Reader"""
+        jina_url = f"https://r.jina.ai/{url}"
+        logger.debug(f"Fetching X thread content from: {jina_url}")
+
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    jina_url,
+                    headers={"Accept": "text/markdown"},
+                    timeout=30.0,
+                    follow_redirects=True
+                )
+                if response.status_code == 200:
+                    content = response.text
+                    logger.debug(f"X thread content fetched, length: {len(content)} chars")
+                    # Truncate if too long
+                    if len(content) > 10000:
+                        content = content[:10000] + "\n\n[Content truncated...]"
+                    return content
+                else:
+                    logger.warning(f"Jina non-200 response for X thread: {response.status_code}")
+        except Exception as e:
+            logger.error(f"Failed to fetch X thread content: {e}")
+
+        return ""
+
     async def _summarize_x_thread(self, url: str) -> SummaryResult:
-        """Use Grok 4 Fast via xAI API for X/Twitter threads"""
-        prompt = f"""Analyze this X/Twitter thread and provide:
-1. A concise title (max 10 words)
-2. A 2-3 sentence summary
-3. 3-5 key points as bullet points with links if the thread references external URLs
+        """Use Grok to analyze pre-fetched X/Twitter thread content"""
+        # Fetch thread content first via Jina Reader
+        thread_content = await self._fetch_x_thread_content(url)
 
-Thread URL: {url}
+        if thread_content:
+            prompt = f"""Analyze this X/Twitter post and provide:
+1. A concise title (max 10 words) capturing the main topic
+2. A 2-3 sentence summary of what the post says
+3. 3-5 key points as bullet points with links if the post references external URLs
 
-IMPORTANT: For key_points, if the thread contains links to articles, videos, or other content, include them inline using markdown format. Example:
+X Post URL: {url}
+
+Post Content:
+{thread_content}
+
+IMPORTANT: For key_points, if the post contains links to articles, videos, or other content, include them inline using markdown format. Example:
 - Key point about topic [→](https://example.com/article)
 - Another point without a link
 
@@ -115,6 +149,23 @@ Respond in this exact JSON format:
     "title": "...",
     "summary": "...",
     "key_points": ["Point with link [→](url)", "Point without link", "..."],
+    "author": "@handle",
+    "thread_date": "YYYY-MM-DD if known"
+}}"""
+        else:
+            # Fallback if content fetch fails
+            prompt = f"""Analyze this X/Twitter post: {url}
+
+Provide:
+1. A concise title (max 10 words)
+2. A 2-3 sentence summary
+3. 3-5 key points
+
+Respond in JSON format:
+{{
+    "title": "...",
+    "summary": "...",
+    "key_points": ["...", "..."],
     "author": "@handle",
     "thread_date": "YYYY-MM-DD if known"
 }}"""
@@ -127,7 +178,7 @@ Respond in this exact JSON format:
                     "Authorization": f"Bearer {self.xai_key}"
                 },
                 json={
-                    "model": "grok-4-fast",
+                    "model": "grok-3-fast",
                     "messages": [{"role": "user", "content": prompt}],
                     "temperature": 0.3
                 },
@@ -136,10 +187,10 @@ Respond in this exact JSON format:
             response.raise_for_status()
             data = response.json()
             content = data["choices"][0]["message"]["content"]
-            
+
             # Parse JSON from response
             parsed = self._parse_json_response(content)
-            
+
             return SummaryResult(
                 title=parsed.get("title", "X Thread"),
                 summary=parsed.get("summary", content),
