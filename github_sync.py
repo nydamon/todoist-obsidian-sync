@@ -132,14 +132,6 @@ type: {summary.url_type.value}
 
         # Summary
         content += f"## Summary\n\n{summary.summary}\n\n"
-        
-        # Video Stages (chapters with timestamps)
-        stages = summary.extra_metadata.get("stages", [])
-        if stages:
-            content += "## Video Chapters\n\n"
-            for stage in stages:
-                content += f"- {stage}\n"
-            content += "\n"
 
         # Key Points
         if summary.key_points:
@@ -147,11 +139,6 @@ type: {summary.url_type.value}
             for point in summary.key_points:
                 content += f"- {point}\n"
             content += "\n"
-
-        # Critical Notes (gotchas, limitations)
-        critical_notes = summary.extra_metadata.get("critical_notes")
-        if critical_notes and critical_notes != "null":
-            content += f"## Critical Notes\n\n{critical_notes}\n\n"
 
         # Source link
         content += f"## Source\n\n[Original]({summary.source_url})\n"
