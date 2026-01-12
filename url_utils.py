@@ -39,7 +39,13 @@ def detect_url_type(url: str) -> URLType:
 
 
 def extract_url_from_text(text: str) -> Optional[str]:
-    """Extract first URL from text"""
+    """Extract first URL from text, stripping trailing punctuation"""
     url_pattern = r'https?://[^\s<>"{}|\\^`\[\]]+'
     match = re.search(url_pattern, text)
-    return match.group(0) if match else None
+    if not match:
+        return None
+    url = match.group(0)
+    # Strip trailing punctuation that commonly wraps URLs in text
+    # e.g., (https://example.com) or https://example.com,
+    url = url.rstrip('.,;:!?)\'\"')
+    return url
