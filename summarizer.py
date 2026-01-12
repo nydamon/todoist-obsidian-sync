@@ -97,15 +97,19 @@ class AISummarizer:
         prompt = f"""Analyze this X/Twitter thread and provide:
 1. A concise title (max 10 words)
 2. A 2-3 sentence summary
-3. 3-5 key points as bullet points
+3. 3-5 key points as bullet points with links if the thread references external URLs
 
 Thread URL: {url}
+
+IMPORTANT: For key_points, if the thread contains links to articles, videos, or other content, include them inline using markdown format. Example:
+- Key point about topic [→](https://example.com/article)
+- Another point without a link
 
 Respond in this exact JSON format:
 {{
     "title": "...",
     "summary": "...",
-    "key_points": ["...", "...", "..."],
+    "key_points": ["Point with link [→](url)", "Point without link", "..."],
     "author": "@handle",
     "thread_date": "YYYY-MM-DD if known"
 }}"""
@@ -149,16 +153,20 @@ Respond in this exact JSON format:
 1. The exact video title
 2. The channel name
 3. A 2-3 sentence summary of the content
-4. 3-5 key points as bullet points
+4. 3-5 key points as bullet points with links if the video references external resources
 
 Video URL: {url}
+
+IMPORTANT: For key_points, if the video mentions or links to articles, tools, resources, or other videos, include them inline using markdown format. Example:
+- Key point about topic [→](https://example.com/resource)
+- Another point without a link
 
 Respond in this exact JSON format:
 {{
     "title": "...",
     "channel": "...",
     "summary": "...",
-    "key_points": ["...", "...", "..."],
+    "key_points": ["Point with link [→](url)", "Point without link", "..."],
     "duration": "if known"
 }}"""
 
@@ -230,18 +238,22 @@ Respond in this exact JSON format:
             prompt = f"""Analyze this article and provide:
 1. A concise title (max 10 words)
 2. A 2-3 sentence summary
-3. 3-5 key points as bullet points
+3. 3-5 key points as bullet points with links to relevant articles/sources if available in the content
 
 Article URL: {url}
 
 Article Content:
 {article_content}
 
+IMPORTANT: For key_points, if the content contains links to related articles or sources, include them inline using markdown format. Example:
+- Key point about topic [→](https://example.com/article)
+- Another point without a link
+
 Respond in this exact JSON format:
 {{
     "title": "...",
     "summary": "...",
-    "key_points": ["...", "...", "..."],
+    "key_points": ["Point with link [→](url)", "Point without link", "..."],
     "author": "if known",
     "publication": "if known"
 }}"""
