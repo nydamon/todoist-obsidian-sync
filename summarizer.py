@@ -197,6 +197,7 @@ Respond in this exact JSON format:
     async def _fetch_article_content(self, url: str) -> str:
         """Fetch article content using Jina Reader for clean markdown"""
         jina_url = f"https://r.jina.ai/{url}"
+        print(f"[DEBUG] Fetching content from: {jina_url}")
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.get(
@@ -205,12 +206,16 @@ Respond in this exact JSON format:
                     timeout=30.0,
                     follow_redirects=True
                 )
+                print(f"[DEBUG] Jina response status: {response.status_code}")
                 if response.status_code == 200:
                     content = response.text
+                    print(f"[DEBUG] Content fetched, length: {len(content)} chars")
                     # Truncate if too long (keep first ~15k chars for context window)
                     if len(content) > 15000:
                         content = content[:15000] + "\n\n[Content truncated...]"
                     return content
+                else:
+                    print(f"[DEBUG] Jina non-200 response: {response.text[:200]}")
         except Exception as e:
             print(f"Jina Reader fetch failed: {e}")
         return ""
@@ -219,6 +224,7 @@ Respond in this exact JSON format:
         """Use Claude Sonnet 4.5 via OpenRouter for articles"""
         # Fetch actual article content first
         article_content = await self._fetch_article_content(url)
+        print(f"[DEBUG] Article content fetched: {len(article_content) if article_content else 0} chars")
 
         if article_content:
             prompt = f"""Analyze this article and provide:
