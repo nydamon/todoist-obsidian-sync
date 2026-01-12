@@ -129,9 +129,108 @@ Verify:
 - [ ] Warning messages for retries/fallbacks
 - [ ] Error messages for failures
 
+## Additional Tests
+
+### 15. Error Logging System
+```bash
+curl -X POST "http://localhost:8000/test/error-log"
+```
+Verify:
+- [ ] Error note created in `_System/Error-Logs/`
+- [ ] Filename format: `YY-MM-DD-HHMM-{slug}.md`
+- [ ] Contains frontmatter, message, resolution checklist
+
+### 16. X.com URL Detection (New Domain)
+```bash
+curl -X POST "http://localhost:8000/test/summarize?url=https://x.com/naval/status/123456"
+```
+Verify:
+- [ ] Detected as X/Twitter type
+- [ ] Routes to Grok 4 Fast model
+
+### 17. YouTube Short URL
+```bash
+curl -X POST "http://localhost:8000/test/summarize?url=https://youtu.be/dQw4w9WgXcQ"
+```
+Verify:
+- [ ] Detected as YouTube type
+- [ ] Routes to Gemini 3 Flash model
+
+### 18. Mobile YouTube URL
+```bash
+curl -X POST "http://localhost:8000/test/summarize?url=https://m.youtube.com/watch?v=abc123"
+```
+Verify:
+- [ ] Detected as YouTube type
+- [ ] Routes to Gemini 3 Flash model
+
+### 19. Travel Context Research Note
+```bash
+curl -X POST "http://localhost:8000/test/research-note?topic=Grand%20Canyon&project=Travel%20Ideas"
+```
+Verify:
+- [ ] Research note created
+- [ ] Content mentions travel-specific info (best time to visit, attractions, etc.)
+
+### 20. Learning Context Research Note
+```bash
+curl -X POST "http://localhost:8000/test/research-note?topic=TypeScript%20Generics&project=Learning"
+```
+Verify:
+- [ ] Research note created
+- [ ] Content mentions learning-specific info (prerequisites, resources, etc.)
+
+### 21. Food Context Research Note
+```bash
+curl -X POST "http://localhost:8000/test/research-note?topic=Best%20Tacos&project=Restaurants"
+```
+Verify:
+- [ ] Research note created
+- [ ] Content mentions restaurant-specific info (cuisine type, price range, etc.)
+
+### 22. Debug Folder Mapping
+```bash
+curl http://localhost:8000/debug/folder-mapping
+```
+Verify:
+- [ ] All Todoist projects listed
+- [ ] Correct folder paths shown
+- [ ] Root folders identified
+
 ## Post-Deployment Verification
 
 - [ ] Railway deployment shows healthy status
 - [ ] Todoist webhook URL configured correctly
 - [ ] Test task triggers full workflow
 - [ ] Note appears in Obsidian vault via GitHub sync
+
+## Cleanup: Remove Test Notes
+
+After testing, delete test-generated notes from Obsidian vault:
+
+```
+# Notes to remove:
+_Inbox/YYYY-MM-DD-*.md              # Test article notes
+_System/Error-Logs/YY-MM-DD-*.md    # Test error logs
+Travel Ideas/*.md                   # Test research notes
+Learning/*.md                       # Test research notes
+Restaurants/*.md                    # Test research notes
+```
+
+Options:
+1. **Obsidian**: Search for notes created today, delete manually
+2. **GitHub**: Delete files via GitHub web interface
+3. **Git**: `git checkout main -- path/to/vault/` to revert
+
+## Running Unit Tests
+
+```bash
+# Install dependencies
+pip install -r requirements.txt
+
+# Run all tests
+pytest tests/ -v
+
+# Run with coverage
+pytest tests/ -v --cov=. --cov-report=term-missing
+```
