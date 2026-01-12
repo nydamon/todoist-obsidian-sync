@@ -215,44 +215,50 @@ class AISummarizer:
     async def _summarize_x_thread_only(self, url: str, thread_content: str) -> SummaryResult:
         """Summarize X thread without embedded video (Grok only)"""
         if thread_content:
-            prompt = f"""Analyze this X/Twitter post and provide:
-1. A concise title (max 10 words) capturing the main topic
-2. A 2-3 sentence summary of what the post says
-3. 3-5 key points as bullet points with links if the post references external URLs
+            prompt = f"""Analyze this X/Twitter post.
 
 X Post URL: {url}
 
 Post Content:
 {thread_content}
 
-IMPORTANT: For key_points, if the post contains links to articles, videos, or other content, include them inline using markdown format. Example:
-- Key point about topic [→](https://example.com/article)
-- Another point without a link
+Provide:
+1. title - The poster's actual words. Use their first sentence or main statement (truncate to ~12 words if needed). Do NOT paraphrase or make up a generic title.
+2. summary - 2-3 sentences explaining the context and significance
+3. key_points - 3-5 bullet points. Include any links from the post using [→](url) format.
+4. author - The @handle
+5. thread_date - Post date if visible (YYYY-MM-DD)
 
-Respond in this exact JSON format:
+CRITICAL: The title must be the poster's OWN WORDS from the post, not your interpretation.
+
+Respond in JSON:
 {{
-    "title": "...",
+    "title": "Poster's actual words from the post...",
     "summary": "...",
-    "key_points": ["Point with link [→](url)", "Point without link", "..."],
+    "key_points": ["Point [→](url)", "..."],
     "author": "@handle",
-    "thread_date": "YYYY-MM-DD if known"
+    "thread_date": "YYYY-MM-DD"
 }}"""
         else:
             # Fallback if content fetch fails
             prompt = f"""Analyze this X/Twitter post: {url}
 
 Provide:
-1. A concise title (max 10 words)
-2. A 2-3 sentence summary
-3. 3-5 key points
+1. title - The poster's actual words (first sentence or main statement, ~12 words max)
+2. summary - 2-3 sentences explaining context
+3. key_points - 3-5 bullet points
+4. author - @handle
+5. thread_date - YYYY-MM-DD if visible
 
-Respond in JSON format:
+CRITICAL: Title must be the poster's OWN WORDS, not your interpretation.
+
+Respond in JSON:
 {{
-    "title": "...",
+    "title": "Poster's actual words...",
     "summary": "...",
-    "key_points": ["...", "..."],
+    "key_points": ["..."],
     "author": "@handle",
-    "thread_date": "YYYY-MM-DD if known"
+    "thread_date": "YYYY-MM-DD"
 }}"""
 
         async with httpx.AsyncClient() as client:
