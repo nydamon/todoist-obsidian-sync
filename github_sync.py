@@ -61,7 +61,7 @@ class ObsidianGitHub:
         # Remove special chars, replace spaces with hyphens
         slug = re.sub(r'[^\w\s-]', '', text.lower())
         slug = re.sub(r'[-\s]+', '-', slug).strip('-')
-        return slug[:50]  # Limit length
+        return slug[:30]  # Limit length for readable filenames
     
     def _get_folder_path(self, project_name: str, parent_project: str = None) -> str:
         """Map Todoist project to Obsidian folder path"""
