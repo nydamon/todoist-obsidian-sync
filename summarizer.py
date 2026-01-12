@@ -240,14 +240,16 @@ Respond in this exact JSON format:
                         logger.warning(f"Jina non-200 response ({response.status_code}): {response.text[:200]}")
 
             except httpx.TimeoutException:
-                logger.warning(f"Jina Reader timeout (attempt {attempt + 1}/{max_retries})")
+                wait_time = 2 ** attempt
+                logger.warning(f"Jina Reader timeout, waiting {wait_time}s before retry (attempt {attempt + 1}/{max_retries})")
                 if attempt < max_retries - 1:
-                    await asyncio.sleep(1)
+                    await asyncio.sleep(wait_time)
                     continue
             except Exception as e:
+                wait_time = 2 ** attempt
                 logger.error(f"Jina Reader fetch failed: {e}")
                 if attempt < max_retries - 1:
-                    await asyncio.sleep(1)
+                    await asyncio.sleep(wait_time)
                     continue
 
         logger.error(f"Failed to fetch content after {max_retries} attempts: {url}")
@@ -404,8 +406,8 @@ Respond in this exact JSON format:
             cleaned_point = point
 
             for text, url in links:
-                # Check if URL is valid (starts with http/https)
-                if url and not url.startswith(('http://', 'https://')):
+                # Check if URL is valid (http/https, relative paths, anchors, mailto)
+                if url and not url.startswith(('http://', 'https://', '/', '#', 'mailto:')):
                     # Remove invalid link, keep just the text
                     cleaned_point = cleaned_point.replace(f'[{text}]({url})', text)
                     logger.debug(f"Removed invalid link: [{text}]({url})")
