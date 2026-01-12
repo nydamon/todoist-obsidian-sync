@@ -182,8 +182,13 @@ async def todoist_webhook(request: Request, background_tasks: BackgroundTasks):
     event = await request.json()
     event_name = event.get("event_name")
     event_data = event.get("event_data", {})
-    
-    print(f"Received event: {event_name}")
+
+    # Debug: Log full webhook payload
+    import json
+    print(f"=== WEBHOOK RECEIVED ===")
+    print(f"Event name: {event_name}")
+    print(f"Full payload: {json.dumps(event, indent=2)}")
+    print(f"========================")
     
     # Route to handler
     if event_name == "item:added":
