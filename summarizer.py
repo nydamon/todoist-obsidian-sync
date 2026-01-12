@@ -46,6 +46,7 @@ class AISummarizer:
     def __init__(self):
         self.xai_key = os.getenv("XAI_API_KEY")
         self.openrouter_key = os.getenv("OPENROUTER_API_KEY")
+        self.google_api_key = os.getenv("GOOGLE_API_KEY")
         
         # Folder-aware context prompts
         self.folder_contexts = {
@@ -303,45 +304,51 @@ Respond in this exact JSON format:
                 return self._parse_json_response(data["choices"][0]["message"]["content"])
 
         async def gemini_video_content():
-            """Get video analysis from Gemini"""
-            prompt = f"""Analyze this YouTube video and provide:
+            """Get video analysis from Gemini 2.5 Pro with native YouTube access"""
+            # Convert youtu.be to full YouTube URL format
+            full_youtube_url = youtube_url
+            if 'youtu.be/' in youtube_url:
+                video_id = youtube_url.split('youtu.be/')[-1].split('?')[0]
+                full_youtube_url = f'https://www.youtube.com/watch?v={video_id}'
+
+            prompt = """Analyze this YouTube video and provide:
 1. The exact video title
 2. The channel name
 3. A detailed 3-4 sentence summary of the main content
 4. 5-7 key points or takeaways with links if the video references external resources
-
-Video URL: {youtube_url}
 
 IMPORTANT: For key_points, if the video mentions or links to articles, tools, resources, or other videos, include them inline using markdown format. Example:
 - Key point about topic [→](https://example.com/resource)
 - Another point without a link
 
 Respond in this exact JSON format:
-{{
+{
     "title": "...",
     "channel": "...",
     "summary": "...",
     "key_points": ["Point with link [→](url)", "Point without link", "..."],
     "duration": "if known"
-}}"""
+}"""
 
             async with httpx.AsyncClient() as client:
                 response = await client.post(
-                    "https://openrouter.ai/api/v1/chat/completions",
-                    headers={
-                        "Content-Type": "application/json",
-                        "Authorization": f"Bearer {self.openrouter_key}"
-                    },
+                    f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key={self.google_api_key}",
+                    headers={"Content-Type": "application/json"},
                     json={
-                        "model": "google/gemini-3-flash-preview",
-                        "messages": [{"role": "user", "content": prompt}],
-                        "temperature": 0.3
+                        "contents": [{
+                            "parts": [
+                                {"text": prompt},
+                                {"file_data": {"file_uri": full_youtube_url}}
+                            ]
+                        }],
+                        "generationConfig": {"temperature": 0.3}
                     },
-                    timeout=90.0  # Longer timeout for video analysis
+                    timeout=120.0  # Longer timeout for video analysis
                 )
                 response.raise_for_status()
                 data = response.json()
-                return self._parse_json_response(data["choices"][0]["message"]["content"])
+                content = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+                return self._parse_json_response(content)
 
         # Run both in parallel
         logger.debug("Running parallel Grok + Gemini analysis")
@@ -397,48 +404,53 @@ Respond in this exact JSON format:
         )
 
     async def _summarize_youtube(self, url: str) -> SummaryResult:
-        """Use Gemini 3 Flash via OpenRouter for YouTube videos"""
-        prompt = f"""Analyze this YouTube video and provide:
+        """Use Gemini 2.5 Pro with native YouTube access for video analysis"""
+        # Convert youtu.be to full YouTube URL format
+        full_youtube_url = url
+        if 'youtu.be/' in url:
+            video_id = url.split('youtu.be/')[-1].split('?')[0]
+            full_youtube_url = f'https://www.youtube.com/watch?v={video_id}'
+
+        prompt = """Analyze this YouTube video and provide:
 1. The exact video title
 2. The channel name
 3. A 2-3 sentence summary of the content
 4. 3-5 key points as bullet points with links if the video references external resources
-
-Video URL: {url}
 
 IMPORTANT: For key_points, if the video mentions or links to articles, tools, resources, or other videos, include them inline using markdown format. Example:
 - Key point about topic [→](https://example.com/resource)
 - Another point without a link
 
 Respond in this exact JSON format:
-{{
+{
     "title": "...",
     "channel": "...",
     "summary": "...",
     "key_points": ["Point with link [→](url)", "Point without link", "..."],
     "duration": "if known"
-}}"""
+}"""
 
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                "https://openrouter.ai/api/v1/chat/completions",
-                headers={
-                    "Content-Type": "application/json",
-                    "Authorization": f"Bearer {self.openrouter_key}"
-                },
+                f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key={self.google_api_key}",
+                headers={"Content-Type": "application/json"},
                 json={
-                    "model": "google/gemini-3-flash-preview",
-                    "messages": [{"role": "user", "content": prompt}],
-                    "temperature": 0.3
+                    "contents": [{
+                        "parts": [
+                            {"text": prompt},
+                            {"file_data": {"file_uri": full_youtube_url}}
+                        ]
+                    }],
+                    "generationConfig": {"temperature": 0.3}
                 },
-                timeout=60.0
+                timeout=120.0
             )
             response.raise_for_status()
             data = response.json()
-            content = data["choices"][0]["message"]["content"]
-            
+            content = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+
             parsed = self._parse_json_response(content)
-            
+
             return SummaryResult(
                 title=parsed.get("title", "YouTube Video"),
                 summary=parsed.get("summary", content),
