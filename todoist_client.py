@@ -5,6 +5,9 @@ import os
 from typing import Optional, List
 from todoist_api_python.api import TodoistAPI
 from dataclasses import dataclass
+from logger import get_logger
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -117,7 +120,7 @@ class TodoistClient:
                 labels=task.labels
             )
         except Exception as e:
-            print(f"Error getting task: {e}")
+            logger.error(f"Error getting task: {e}")
             return None
     
     def complete_task(self, task_id: str) -> bool:
@@ -126,7 +129,7 @@ class TodoistClient:
             self.api.close_task(task_id)
             return True
         except Exception as e:
-            print(f"Error completing task: {e}")
+            logger.error(f"Error completing task: {e}")
             return False
     
     def create_project(self, name: str, parent_id: str = None) -> Optional[str]:
@@ -136,7 +139,7 @@ class TodoistClient:
             self._refresh_projects()
             return project.id
         except Exception as e:
-            print(f"Error creating project: {e}")
+            logger.error(f"Error creating project: {e}")
             return None
     
     def delete_project(self, project_id: str) -> bool:
@@ -146,5 +149,5 @@ class TodoistClient:
             self._refresh_projects()
             return True
         except Exception as e:
-            print(f"Error deleting project: {e}")
+            logger.error(f"Error deleting project: {e}")
             return False

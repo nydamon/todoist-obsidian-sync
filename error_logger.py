@@ -5,6 +5,9 @@ import os
 import traceback
 from datetime import datetime
 from github import Github
+from logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class ErrorLogger:
@@ -43,12 +46,12 @@ class ErrorLogger:
                 f"Error log: {error_type}",
                 content
             )
-            print(f"Error logged: {file_path}")
+            logger.info(f"Error logged: {file_path}")
             return file_path
         except Exception as e:
             # Fallback to console if GitHub fails
-            print(f"FAILED TO LOG ERROR TO GITHUB: {e}")
-            print(f"Original error: {error_type} - {error_message}")
+            logger.critical(f"FAILED TO LOG ERROR TO GITHUB: {e}")
+            logger.error(f"Original error: {error_type} - {error_message}")
             return None
     
     def _build_error_content(self, error_type: str, error_message: str,

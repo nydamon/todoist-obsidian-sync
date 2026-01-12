@@ -4,6 +4,7 @@ FastAPI webhook server for Todoist events
 import os
 import hmac
 import hashlib
+import json
 from fastapi import FastAPI, Request, HTTPException, BackgroundTasks
 from dotenv import load_dotenv
 
@@ -12,6 +13,9 @@ from summarizer import AISummarizer
 from github_sync import ObsidianGitHub
 from todoist_client import TodoistClient
 from error_logger import log_error
+from logger import get_logger
+
+logger = get_logger(__name__)
 
 load_dotenv()
 
@@ -41,7 +45,7 @@ async def process_new_task(task_id: str):
             error_message=f"Could not retrieve task from Todoist",
             context={"task_id": task_id}
         )
-        print(f"Task {task_id} not found")
+        logger.warning(f"Task {task_id} not found")
         return
     
     # Check for @note label (research note without URL)
@@ -52,7 +56,7 @@ async def process_new_task(task_id: str):
     
     if has_note_label and not url:
         # Create research note for @note tasks without URLs
-        print(f"Processing @note task: {task.content}")
+        logger.info(f"Processing @note task: {task.content}")
         
         try:
             # Use task content as topic, pass project context
@@ -70,7 +74,7 @@ async def process_new_task(task_id: str):
                 todoist_task_id=task.id,
                 priority=task.priority
             )
-            print(f"Created research note: {file_path}")
+            logger.info(f"Created research note: {file_path}")
         except Exception as e:
             log_error(
                 error_type="Research Note Failed",
@@ -83,16 +87,16 @@ async def process_new_task(task_id: str):
                 },
                 exception=e
             )
-            print(f"Error creating research note: {e}")
+            logger.error(f"Error creating research note: {e}")
         return
     
     if not url:
-        print(f"No URL found in task {task_id} (add @note label for research notes)")
+        logger.debug(f"No URL found in task {task_id} (add @note label for research notes)")
         return
     
     # Detect URL type
     url_type = detect_url_type(url)
-    print(f"Processing {url_type.value}: {url}")
+    logger.info(f"Processing {url_type.value}: {url}")
     
     # Summarize
     try:
@@ -109,7 +113,7 @@ async def process_new_task(task_id: str):
             },
             exception=e
         )
-        print(f"Error summarizing: {e}")
+        logger.error(f"Error summarizing: {e}")
         return
     
     # Create note in Obsidian
@@ -121,7 +125,7 @@ async def process_new_task(task_id: str):
             todoist_task_id=task.id,
             priority=task.priority
         )
-        print(f"Created note: {file_path}")
+        logger.info(f"Created note: {file_path}")
     except Exception as e:
         log_error(
             error_type="Note Creation Failed",
@@ -134,7 +138,7 @@ async def process_new_task(task_id: str):
             },
             exception=e
         )
-        print(f"Error creating note: {e}")
+        logger.error(f"Error creating note: {e}")
         return
     
     # Optionally complete the task
@@ -145,7 +149,7 @@ async def process_task_completed(task_id: str):
     """Archive note when task is completed"""
     # This would require storing a mapping of task_id -> file_path
     # For now, we'll skip this
-    print(f"Task completed: {task_id}")
+    logger.info(f"Task completed: {task_id}")
 
 
 async def process_project_added(project_id: str):
@@ -156,13 +160,13 @@ async def process_project_added(project_id: str):
     
     folder_path = github._get_folder_path(project.name, project.parent_name)
     github.create_folder(folder_path)
-    print(f"Created folder: {folder_path}")
+    logger.info(f"Created folder: {folder_path}")
 
 
 async def process_project_deleted(project_id: str, project_name: str):
     """Archive folder when project is deleted"""
     # Note: We'd need to track the project name since it's deleted
-    print(f"Project deleted: {project_id}")
+    logger.info(f"Project deleted: {project_id}")
 
 
 @app.post("/webhook/todoist")
@@ -184,11 +188,10 @@ async def todoist_webhook(request: Request, background_tasks: BackgroundTasks):
     event_data = event.get("event_data", {})
 
     # Debug: Log full webhook payload
-    import json
-    print(f"=== WEBHOOK RECEIVED ===")
-    print(f"Event name: {event_name}")
-    print(f"Full payload: {json.dumps(event, indent=2)}")
-    print(f"========================")
+    logger.debug(f"=== WEBHOOK RECEIVED ===")
+    logger.debug(f"Event name: {event_name}")
+    logger.debug(f"Full payload: {json.dumps(event, indent=2)}")
+    logger.debug(f"========================")
     
     # Route to handler
     if event_name == "item:added":

@@ -3,9 +3,14 @@ AI Summarization using multiple models based on URL type
 """
 import httpx
 import os
+import re
+import asyncio
 from typing import List, Dict
 from dataclasses import dataclass
 from url_utils import URLType
+from logger import get_logger
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -202,37 +207,57 @@ Respond in this exact JSON format:
                 }
             )
 
-    async def _fetch_article_content(self, url: str) -> str:
-        """Fetch article content using Jina Reader for clean markdown"""
+    async def _fetch_article_content(self, url: str, max_retries: int = 3) -> str:
+        """Fetch article content using Jina Reader for clean markdown with retry logic"""
         jina_url = f"https://r.jina.ai/{url}"
-        print(f"[DEBUG] Fetching content from: {jina_url}")
-        try:
-            async with httpx.AsyncClient() as client:
-                response = await client.get(
-                    jina_url,
-                    headers={"Accept": "text/markdown"},
-                    timeout=30.0,
-                    follow_redirects=True
-                )
-                print(f"[DEBUG] Jina response status: {response.status_code}")
-                if response.status_code == 200:
-                    content = response.text
-                    print(f"[DEBUG] Content fetched, length: {len(content)} chars")
-                    # Truncate if too long (keep first ~15k chars for context window)
-                    if len(content) > 15000:
-                        content = content[:15000] + "\n\n[Content truncated...]"
-                    return content
-                else:
-                    print(f"[DEBUG] Jina non-200 response: {response.text[:200]}")
-        except Exception as e:
-            print(f"Jina Reader fetch failed: {e}")
+
+        for attempt in range(max_retries):
+            logger.debug(f"Fetching content from: {jina_url} (attempt {attempt + 1}/{max_retries})")
+            try:
+                async with httpx.AsyncClient() as client:
+                    response = await client.get(
+                        jina_url,
+                        headers={"Accept": "text/markdown"},
+                        timeout=30.0,
+                        follow_redirects=True
+                    )
+                    logger.debug(f"Jina response status: {response.status_code}")
+
+                    if response.status_code == 200:
+                        content = response.text
+                        logger.debug(f"Content fetched, length: {len(content)} chars")
+                        # Truncate if too long (keep first ~15k chars for context window)
+                        if len(content) > 15000:
+                            content = content[:15000] + "\n\n[Content truncated...]"
+                        return content
+                    elif response.status_code == 429:
+                        # Rate limited - wait and retry
+                        wait_time = 2 ** attempt  # Exponential backoff: 1, 2, 4 seconds
+                        logger.warning(f"Rate limited by Jina Reader, waiting {wait_time}s before retry")
+                        await asyncio.sleep(wait_time)
+                        continue
+                    else:
+                        logger.warning(f"Jina non-200 response ({response.status_code}): {response.text[:200]}")
+
+            except httpx.TimeoutException:
+                logger.warning(f"Jina Reader timeout (attempt {attempt + 1}/{max_retries})")
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(1)
+                    continue
+            except Exception as e:
+                logger.error(f"Jina Reader fetch failed: {e}")
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(1)
+                    continue
+
+        logger.error(f"Failed to fetch content after {max_retries} attempts: {url}")
         return ""
 
     async def _summarize_article(self, url: str) -> SummaryResult:
         """Use Claude Sonnet 4.5 via OpenRouter for articles"""
         # Fetch actual article content first
         article_content = await self._fetch_article_content(url)
-        print(f"[DEBUG] Article content fetched: {len(article_content) if article_content else 0} chars")
+        logger.debug(f"Article content fetched: {len(article_content) if article_content else 0} chars")
 
         if article_content:
             prompt = f"""Analyze this article and provide:
@@ -367,24 +392,49 @@ Respond in this exact JSON format:
                 suggestions=parsed.get("suggestions", [])
             )
 
+    def _validate_links(self, key_points: List[str]) -> List[str]:
+        """Validate and clean markdown links in key points"""
+        cleaned_points = []
+        # Pattern to match markdown links: [text](url)
+        link_pattern = re.compile(r'\[([^\]]*)\]\(([^)]*)\)')
+
+        for point in key_points:
+            # Find all links in the point
+            links = link_pattern.findall(point)
+            cleaned_point = point
+
+            for text, url in links:
+                # Check if URL is valid (starts with http/https)
+                if url and not url.startswith(('http://', 'https://')):
+                    # Remove invalid link, keep just the text
+                    cleaned_point = cleaned_point.replace(f'[{text}]({url})', text)
+                    logger.debug(f"Removed invalid link: [{text}]({url})")
+
+            cleaned_points.append(cleaned_point)
+
+        return cleaned_points
+
     def _parse_json_response(self, content: str) -> dict:
-        """Extract JSON from model response"""
+        """Extract JSON from model response and validate links"""
         import json
-        
+
+        result = {}
+
         # Try direct parse
         try:
-            return json.loads(content)
+            result = json.loads(content)
         except json.JSONDecodeError:
-            pass
-        
-        # Try to find JSON block
-        import re
-        json_match = re.search(r'\{[\s\S]*\}', content)
-        if json_match:
-            try:
-                return json.loads(json_match.group())
-            except json.JSONDecodeError:
-                pass
-        
-        # Return empty dict if parsing fails
-        return {}
+            # Try to find JSON block
+            json_match = re.search(r'\{[\s\S]*\}', content)
+            if json_match:
+                try:
+                    result = json.loads(json_match.group())
+                except json.JSONDecodeError:
+                    logger.warning("Failed to parse JSON from model response")
+                    return {}
+
+        # Validate links in key_points if present
+        if 'key_points' in result and isinstance(result['key_points'], list):
+            result['key_points'] = self._validate_links(result['key_points'])
+
+        return result

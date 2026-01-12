@@ -6,6 +6,9 @@ import base64
 from datetime import datetime
 from github import Github
 from summarizer import SummaryResult, ResearchResult
+from logger import get_logger
+
+logger = get_logger(__name__)
 
 
 
@@ -137,7 +140,7 @@ type: {summary.url_type.value}
             )
             return True
         except Exception as e:
-            print(f"Error creating folder: {e}")
+            logger.error(f"Error creating folder: {e}")
             return False
     
     def delete_folder(self, folder_path: str) -> bool:
@@ -168,7 +171,7 @@ type: {summary.url_type.value}
             
             return True
         except Exception as e:
-            print(f"Error deleting folder: {e}")
+            logger.error(f"Error deleting folder: {e}")
             return False
     
     def create_research_note(self, research: ResearchResult, project_name: str,
@@ -272,5 +275,5 @@ priority: {priority}
             
             return True
         except Exception as e:
-            print(f"Error archiving note: {e}")
+            logger.error(f"Error archiving note: {e}")
             return False
