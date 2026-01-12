@@ -123,11 +123,13 @@ class ObsidianGitHub:
         
         return file_path
     
-    def _build_note_content(self, summary: SummaryResult, todoist_task_id: str = None, 
-                             priority: int = 4) -> str:
+    def _build_note_content(self, summary: SummaryResult, todoist_task_id: str = None,
+                             priority: int = 1) -> str:
         """Build markdown content for the note"""
-        
+
         # Frontmatter
+        # Convert Todoist API priority (1=normal, 4=urgent) to UI priority (P1=urgent, P4=normal)
+        ui_priority = 5 - priority
         frontmatter = f"""---
 source: {summary.source_url}
 captured: {datetime.now().strftime("%Y-%m-%d")}
@@ -136,8 +138,8 @@ type: {summary.url_type.value}
 """
         if todoist_task_id:
             frontmatter += f"todoist_id: {todoist_task_id}\n"
-        
-        frontmatter += f"priority: {priority}\n"
+
+        frontmatter += f"priority: {ui_priority}\n"
         
         # Add extra metadata
         for key, value in summary.extra_metadata.items():
@@ -262,14 +264,16 @@ type: {summary.url_type.value}
         return file_path
     
     def _build_research_content(self, research: ResearchResult, todoist_task_id: str = None,
-                                 priority: int = 4) -> str:
+                                 priority: int = 1) -> str:
         """Build markdown content for research note"""
-        
+
+        # Convert Todoist API priority (1=normal, 4=urgent) to UI priority (P1=urgent, P4=normal)
+        ui_priority = 5 - priority
         frontmatter = f"""---
 captured: {datetime.now().strftime("%Y-%m-%d")}
 status: new
 type: research
-priority: {priority}
+priority: {ui_priority}
 """
         if todoist_task_id:
             frontmatter += f"todoist_id: {todoist_task_id}\n"

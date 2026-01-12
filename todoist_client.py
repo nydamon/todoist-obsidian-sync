@@ -26,7 +26,7 @@ class TodoistTask:
     project_id: str
     project_name: str
     parent_project_name: Optional[str] = None
-    priority: int = 4  # Todoist: 1=urgent, 4=default
+    priority: int = 1  # Todoist API: 1=normal (P4), 4=urgent (P1)
     labels: List[str] = None
     
     def __post_init__(self):
@@ -116,7 +116,7 @@ class TodoistClient:
                 project_id=task.project_id,
                 project_name=project.name if project else "Inbox",
                 parent_project_name=project.parent_name if project else None,
-                priority=task.priority,  # 1=urgent, 4=default
+                priority=task.priority,  # API: 1=normal (P4), 4=urgent (P1)
                 labels=task.labels
             )
         except Exception as e:
