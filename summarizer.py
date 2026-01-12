@@ -262,15 +262,19 @@ Respond in this exact JSON format:
             prompt = f"""Analyze this article/webpage and provide:
 1. A concise title (max 10 words)
 2. A 2-3 sentence summary
-3. 3-5 key points as bullet points
+3. 3-5 key points as bullet points with links if you can identify any from the URL
 
 URL: {url}
+
+IMPORTANT: For key_points, if you can identify links to related content, include them inline using markdown format. Example:
+- Key point about topic [→](https://example.com/article)
+- Another point without a link
 
 Respond in this exact JSON format:
 {{
     "title": "...",
     "summary": "...",
-    "key_points": ["...", "...", "..."],
+    "key_points": ["Point with link [→](url)", "Point without link", "..."],
     "author": "if known",
     "publication": "if known"
 }}"""
