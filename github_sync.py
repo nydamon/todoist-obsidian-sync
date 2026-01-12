@@ -2,6 +2,7 @@
 GitHub integration for Obsidian vault
 """
 import os
+import re
 import base64
 from datetime import datetime
 from github import Github
@@ -9,6 +10,37 @@ from summarizer import SummaryResult, ResearchResult
 from logger import get_logger
 
 logger = get_logger(__name__)
+
+
+def _timestamp_to_youtube_link(text: str, video_url: str) -> str:
+    """Convert [MM:SS] timestamps to clickable YouTube links"""
+    if not video_url:
+        return text
+
+    # Extract video ID
+    video_id = None
+    if 'youtu.be/' in video_url:
+        video_id = video_url.split('youtu.be/')[-1].split('?')[0]
+    elif 'youtube.com/watch?v=' in video_url:
+        video_id = video_url.split('v=')[-1].split('&')[0]
+
+    if not video_id:
+        return text
+
+    def replace_timestamp(match):
+        timestamp = match.group(1)  # e.g., "01:07" or "1:07:30"
+        parts = timestamp.split(':')
+        if len(parts) == 2:
+            seconds = int(parts[0]) * 60 + int(parts[1])
+        elif len(parts) == 3:
+            seconds = int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
+        else:
+            return match.group(0)
+
+        return f"[[{timestamp}](https://youtube.com/watch?v={video_id}&t={seconds}s)]"
+
+    # Match [MM:SS] or [H:MM:SS] patterns
+    return re.sub(r'\[(\d{1,2}:\d{2}(?::\d{2})?)\]', replace_timestamp, text)
 
 
 
@@ -133,10 +165,13 @@ type: {summary.url_type.value}
         # Summary
         content += f"## Summary\n\n{summary.summary}\n\n"
 
-        # Key Points
+        # Key Points (convert timestamps to clickable YouTube links)
         if summary.key_points:
             content += "## Key Points\n\n"
             for point in summary.key_points:
+                # Convert [MM:SS] to clickable links if video present
+                if video_url:
+                    point = _timestamp_to_youtube_link(point, video_url)
                 content += f"- {point}\n"
             content += "\n"
 
