@@ -655,20 +655,26 @@ Respond in this exact JSON format:
             
             parsed = self._parse_json_response(content)
             
-            # Convert links array to formatted list
+            # Clean citation markers like [1], [3] from Perplexity output
+            def clean_citations(text):
+                if isinstance(text, str):
+                    return re.sub(r'\[\d+\]', '', text).strip()
+                return text
+            
+            # Convert links array to formatted list as clickable markdown
             links = parsed.get("links", [])
             formatted_links = []
             for link in links:
                 if isinstance(link, dict) and link.get("url"):
                     label = link.get("label", "Link")
                     url = link.get("url")
-                    formatted_links.append(f"{label}: {url}")
+                    formatted_links.append(f"[{label}]({url})")
             
             return ResearchResult(
                 title=topic,
-                summary=parsed.get("summary", ""),
-                key_points=parsed.get("key_points", []),
-                suggestions=parsed.get("suggestions", []),
+                summary=clean_citations(parsed.get("summary", "")),
+                key_points=[clean_citations(p) for p in parsed.get("key_points", [])],
+                suggestions=[clean_citations(s) for s in parsed.get("suggestions", [])],
                 extra_metadata={
                     "links": formatted_links
                 }
