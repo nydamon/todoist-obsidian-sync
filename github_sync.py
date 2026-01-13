@@ -8,6 +8,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 from github import Github
 from summarizer import SummaryResult, ResearchResult
+from url_utils import URLType
 from logger import get_logger
 
 logger = get_logger(__name__)
@@ -211,19 +212,25 @@ type: {summary.url_type.value}
 
         # Links section (from metadata - author, video URLs, etc.)
         if link_metadata:
-            content += "## Links\n\n"
+            links_content = ""
             for key, value in link_metadata.items():
                 if key == 'author' and value:
-                    # Format author as X/Twitter link
-                    handle = value.lstrip('@')
-                    content += f"- Author: [{value}](https://x.com/{handle})\n"
+                    # Only format as X/Twitter link if it looks like a handle and is from X content
+                    if value.startswith('@') and summary.url_type == URLType.X_TWITTER:
+                        handle = value.lstrip('@')
+                        links_content += f"- Author: [{value}](https://x.com/{handle})\n"
+                    # Skip generic "Unknown", "if known", etc.
+                    elif value.lower() not in ('unknown', 'if known', 'n/a', 'none', ''):
+                        links_content += f"- Author: {value}\n"
                 elif key == 'video_url' and value:
-                    content += f"- [Video]({value})\n"
+                    links_content += f"- [Video]({value})\n"
                 elif key.endswith('_url') and value:
                     # Generic URL handling
                     label = key.replace('_url', '').replace('_', ' ').title()
-                    content += f"- [{label}]({value})\n"
-            content += "\n"
+                    links_content += f"- [{label}]({value})\n"
+
+            if links_content:
+                content += "## Links\n\n" + links_content + "\n"
 
         # Source link
         content += f"## Source\n\n[Original]({summary.source_url})\n"
