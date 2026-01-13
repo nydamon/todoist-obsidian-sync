@@ -72,6 +72,7 @@ class AISummarizer:
         self.xai_key = os.getenv("XAI_API_KEY")
         self.openrouter_key = os.getenv("OPENROUTER_API_KEY")
         self.google_api_key = os.getenv("GOOGLE_API_KEY")
+        self.perplexity_key = os.getenv("PERPLEXITY_API_KEY")
         
         # Folder-aware context prompts
         self.folder_contexts = {
@@ -593,7 +594,7 @@ Respond in this exact JSON format:
 
     async def research_topic(self, topic: str, project_name: str = "", 
                               parent_project: str = "", context: str = "") -> ResearchResult:
-        """Generate research starter for @note tasks without URLs"""
+        """Generate research starter for @note tasks without URLs using Perplexity for web search"""
         
         # Get folder-aware context
         folder_context = self._get_folder_context(project_name, parent_project)
@@ -603,34 +604,48 @@ Respond in this exact JSON format:
         if context:
             full_context += f"\n\nAdditional context: {context}"
         
-        prompt = f"""Research this topic and provide a helpful starter note:
+        prompt = f"""Research this topic using current web information and provide a helpful starter note:
 
 Topic: {topic}
 Context: {full_context}
 
+IMPORTANT: Search the web and include ACTUAL links you find. Do NOT say "search for X" - instead find and include the real URLs.
+
 Provide:
-1. A brief overview (2-3 sentences)
+1. A brief overview (2-3 sentences) with key facts you found
 2. 3-5 key facts or points worth knowing
-3. 3-5 suggested areas to explore or questions to research
+3. 3-5 relevant links you found (official sites, social media, platforms where this entity exists)
+
+For links section, include actual URLs you found such as:
+- Official website
+- Social media profiles (X/Twitter, Instagram, etc.)
+- Platform presence (YouTube, SoundCloud, Spotify, Bandcamp, GitHub, LinkedIn, etc.)
+- Wikipedia or other reference pages
+- Recent news or articles
 
 Respond in this exact JSON format:
 {{
     "summary": "...",
     "key_points": ["...", "...", "..."],
-    "suggestions": ["...", "...", "..."]
+    "links": [
+        {{"label": "Official Website", "url": "https://..."}},
+        {{"label": "SoundCloud", "url": "https://soundcloud.com/..."}},
+        {{"label": "YouTube", "url": "https://youtube.com/..."}}
+    ],
+    "suggestions": ["Areas to explore further...", "...", "..."]
 }}"""
 
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                "https://openrouter.ai/api/v1/chat/completions",
+                "https://api.perplexity.ai/chat/completions",
                 headers={
                     "Content-Type": "application/json",
-                    "Authorization": f"Bearer {self.openrouter_key}"
+                    "Authorization": f"Bearer {self.perplexity_key}"
                 },
                 json={
-                    "model": "anthropic/claude-sonnet-4.5",
+                    "model": "sonar-pro",
                     "messages": [{"role": "user", "content": prompt}],
-                    "temperature": 0.5
+                    "temperature": 0.3
                 },
                 timeout=60.0
             )
@@ -640,11 +655,23 @@ Respond in this exact JSON format:
             
             parsed = self._parse_json_response(content)
             
+            # Convert links array to formatted list
+            links = parsed.get("links", [])
+            formatted_links = []
+            for link in links:
+                if isinstance(link, dict) and link.get("url"):
+                    label = link.get("label", "Link")
+                    url = link.get("url")
+                    formatted_links.append(f"{label}: {url}")
+            
             return ResearchResult(
                 title=topic,
                 summary=parsed.get("summary", ""),
                 key_points=parsed.get("key_points", []),
-                suggestions=parsed.get("suggestions", [])
+                suggestions=parsed.get("suggestions", []),
+                extra_metadata={
+                    "links": formatted_links
+                }
             )
 
     def _validate_links(self, key_points: List[str]) -> List[str]:
