@@ -133,6 +133,18 @@ class ObsidianGitHub:
         
         return file_path
     
+    def _yaml_safe_value(self, value: str) -> str:
+        """Quote YAML values that contain special characters"""
+        if not value:
+            return value
+        # Quote if contains special YAML chars or starts with @
+        needs_quote = any(c in str(value) for c in [':', '#', '&', '*', '?', '|', '>', '<', '=', '!', '%', '@', '`', "'", '"', '[', ']', '{', '}', ','])
+        if needs_quote or str(value).startswith('@'):
+            # Escape any existing double quotes and wrap in quotes
+            escaped = str(value).replace('"', '\\"')
+            return f'"{escaped}"'
+        return str(value)
+
     def _build_note_content(self, summary: SummaryResult, todoist_task_id: str = None,
                              priority: int = 1) -> str:
         """Build markdown content for the note"""
@@ -140,8 +152,9 @@ class ObsidianGitHub:
         # Frontmatter
         # Convert Todoist API priority (1=normal, 4=urgent) to UI priority (P1=urgent, P4=normal)
         ui_priority = 5 - priority
+        source_url = self._yaml_safe_value(summary.source_url)
         frontmatter = f"""---
-source: {summary.source_url}
+source: {source_url}
 captured: {datetime.now().strftime("%Y-%m-%d")}
 status: new
 type: {summary.url_type.value}
@@ -151,10 +164,11 @@ type: {summary.url_type.value}
 
         frontmatter += f"priority: {ui_priority}\n"
         
-        # Add extra metadata
+        # Add extra metadata with proper YAML escaping
         for key, value in summary.extra_metadata.items():
             if value:
-                frontmatter += f"{key}: {value}\n"
+                safe_value = self._yaml_safe_value(value)
+                frontmatter += f"{key}: {safe_value}\n"
         
         frontmatter += "---\n\n"
         
@@ -291,6 +305,13 @@ priority: {ui_priority}
 """
         if todoist_task_id:
             frontmatter += f"todoist_id: {todoist_task_id}\n"
+        
+        # Add any extra metadata with proper YAML escaping
+        if hasattr(research, 'extra_metadata') and research.extra_metadata:
+            for key, value in research.extra_metadata.items():
+                if value:
+                    safe_value = self._yaml_safe_value(value)
+                    frontmatter += f"{key}: {safe_value}\n"
         
         frontmatter += "---\n\n"
         
