@@ -12,6 +12,15 @@ from logger import get_logger
 
 logger = get_logger(__name__)
 
+# Priority emoji for filenames (traffic light style)
+# Todoist API: 4=P1 (urgent), 3=P2, 2=P3, 1=P4 (normal)
+PRIORITY_EMOJI = {
+    3: "🟠",  # P2 - high
+    2: "🟡",  # P3 - medium
+    1: "⚪",  # P4 - normal
+}
+# Note: P1 (priority=4) tasks are skipped entirely in main.py
+
 
 def _timestamp_to_youtube_link(text: str, video_url: str) -> str:
     """Convert [MM:SS] timestamps to clickable YouTube links"""
@@ -91,12 +100,13 @@ class ObsidianGitHub:
         
         folder_path = self._get_folder_path(project_name, parent_project)
         
-        # Generate clean filename (no emojis - use Supercharged Links for visual indicators)
+        # Generate filename with priority emoji prefix
         # Use EST timezone with YY-MM-DD-H:MM format (no leading zero on hour)
         est_now = datetime.now(ZoneInfo("America/New_York"))
         date_prefix = est_now.strftime("%y-%m-%d-%-H:%M")
         slug = self._slugify(summary.title)
-        filename = f"{date_prefix}-{slug}.md"
+        emoji = PRIORITY_EMOJI.get(priority, "")
+        filename = f"{emoji}-{date_prefix}-{slug}.md" if emoji else f"{date_prefix}-{slug}.md"
         file_path = f"{folder_path}/{filename}"
         
         # Build note content
@@ -237,9 +247,10 @@ type: {summary.url_type.value}
         
         folder_path = self._get_folder_path(project_name, parent_project)
         
-        # Generate clean filename
+        # Generate filename with priority emoji prefix
         slug = self._slugify(research.title)
-        filename = f"{slug}.md"
+        emoji = PRIORITY_EMOJI.get(priority, "")
+        filename = f"{emoji}-{slug}.md" if emoji else f"{slug}.md"
         file_path = f"{folder_path}/{filename}"
         
         # Build note content

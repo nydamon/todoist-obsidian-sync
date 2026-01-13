@@ -52,7 +52,12 @@ async def process_new_task(task_id: str):
         )
         logger.warning(f"Task {task_id} not found")
         return
-    
+
+    # Skip P1 (urgent) tasks - quick actions, no note needed
+    if task.priority == 4:
+        logger.info(f"Skipping P1 task: {task.content[:50]}")
+        return
+
     # Check for @note label (research note without URL)
     has_note_label = "note" in [l.lower() for l in task.labels]
     
