@@ -164,12 +164,17 @@ type: {summary.url_type.value}
 
         frontmatter += f"priority: {ui_priority}\n"
         
-        # Add extra metadata with proper YAML escaping
+        # Add non-link metadata to frontmatter (exclude URLs which go in body)
+        link_metadata = {}  # Collect link items for body section
         for key, value in summary.extra_metadata.items():
             if value:
-                safe_value = self._yaml_safe_value(value)
-                frontmatter += f"{key}: {safe_value}\n"
-        
+                # Check if this is a URL or link-related field
+                if key.endswith('_url') or key == 'author' or 'link' in key.lower():
+                    link_metadata[key] = value
+                else:
+                    safe_value = self._yaml_safe_value(value)
+                    frontmatter += f"{key}: {safe_value}\n"
+
         frontmatter += "---\n\n"
         
         # Title
@@ -204,9 +209,25 @@ type: {summary.url_type.value}
                 content += f"- {point}\n"
             content += "\n"
 
+        # Links section (from metadata - author, video URLs, etc.)
+        if link_metadata:
+            content += "## Links\n\n"
+            for key, value in link_metadata.items():
+                if key == 'author' and value:
+                    # Format author as X/Twitter link
+                    handle = value.lstrip('@')
+                    content += f"- Author: [{value}](https://x.com/{handle})\n"
+                elif key == 'video_url' and value:
+                    content += f"- [Video]({value})\n"
+                elif key.endswith('_url') and value:
+                    # Generic URL handling
+                    label = key.replace('_url', '').replace('_', ' ').title()
+                    content += f"- [{label}]({value})\n"
+            content += "\n"
+
         # Source link
         content += f"## Source\n\n[Original]({summary.source_url})\n"
-        
+
         return frontmatter + content
     
     def create_folder(self, folder_path: str) -> bool:
@@ -306,13 +327,7 @@ priority: {ui_priority}
         if todoist_task_id:
             frontmatter += f"todoist_id: {todoist_task_id}\n"
         
-        # Add any extra metadata with proper YAML escaping
-        if hasattr(research, 'extra_metadata') and research.extra_metadata:
-            for key, value in research.extra_metadata.items():
-                if value:
-                    safe_value = self._yaml_safe_value(value)
-                    frontmatter += f"{key}: {safe_value}\n"
-        
+        # Note: links are NOT added to frontmatter - they go in the body as clickable markdown
         frontmatter += "---\n\n"
         
         # Title
@@ -327,6 +342,15 @@ priority: {ui_priority}
             for point in research.key_points:
                 content += f"- {point}\n"
             content += "\n"
+        
+        # Links section (from Perplexity web search)
+        if hasattr(research, 'extra_metadata') and research.extra_metadata:
+            links = research.extra_metadata.get('links', [])
+            if links:
+                content += "## Links\n\n"
+                for link in links:
+                    content += f"- {link}\n"
+                content += "\n"
         
         # Research Suggestions
         if research.suggestions:
