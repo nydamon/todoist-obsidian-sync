@@ -58,15 +58,12 @@ async def process_new_task(task_id: str):
         logger.info(f"Skipping P1 task: {task.content[:50]}")
         return
 
-    # Check for @note label (research note without URL)
-    has_note_label = "note" in [l.lower() for l in task.labels]
-    
     # Check for URL in content or description
     url = extract_url_from_text(task.content) or extract_url_from_text(task.description)
-    
-    if has_note_label and not url:
-        # Create research note for @note tasks without URLs
-        logger.info(f"Processing @note task: {task.content}")
+
+    if not url:
+        # No URL → create research note (any non-P1 task without URL becomes a research note)
+        logger.info(f"Processing research note (no URL): {task.content}")
         
         try:
             # Use task content as topic, pass project context
@@ -104,11 +101,7 @@ async def process_new_task(task_id: str):
             )
             logger.error(f"Error creating research note: {e}")
         return
-    
-    if not url:
-        logger.debug(f"No URL found in task {task_id} (add @note label for research notes)")
-        return
-    
+
     # Detect URL type
     url_type = detect_url_type(url)
     logger.info(f"Processing {url_type.value}: {url}")
