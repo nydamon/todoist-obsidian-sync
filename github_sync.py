@@ -102,9 +102,9 @@ class ObsidianGitHub:
         folder_path = self._get_folder_path(project_name, parent_project)
         
         # Generate filename with priority emoji prefix
-        # Use EST timezone with YY-MM-DD-H:MM format (no leading zero on hour)
+        # Use EST timezone with YY-MM-DD-HH-MM format (colons invalid in filenames)
         est_now = datetime.now(ZoneInfo("America/New_York"))
-        date_prefix = f"{est_now.strftime('%y-%m-%d')}-{est_now.hour}:{est_now.strftime('%M')}"
+        date_prefix = est_now.strftime('%y-%m-%d-%H-%M')
         slug = self._slugify(summary.title)
         emoji = PRIORITY_EMOJI.get(priority, "")
         filename = f"{emoji}-{date_prefix}-{slug}.md" if emoji else f"{date_prefix}-{slug}.md"
@@ -290,9 +290,9 @@ type: {summary.url_type.value}
         folder_path = self._get_folder_path(project_name, parent_project)
         
         # Generate filename with priority emoji prefix
-        # Use EST timezone with YY-MM-DD-H:MM format (no leading zero on hour)
+        # Use EST timezone with YY-MM-DD-HH-MM format (colons invalid in filenames)
         est_now = datetime.now(ZoneInfo("America/New_York"))
-        date_prefix = f"{est_now.strftime('%y-%m-%d')}-{est_now.hour}:{est_now.strftime('%M')}"
+        date_prefix = est_now.strftime('%y-%m-%d-%H-%M')
         slug = self._slugify(research.title)
         emoji = PRIORITY_EMOJI.get(priority, "")
         filename = f"{emoji}-{date_prefix}-{slug}.md" if emoji else f"{date_prefix}-{slug}.md"
