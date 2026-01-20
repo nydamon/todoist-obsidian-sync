@@ -654,13 +654,19 @@ Respond in this exact JSON format:
             content = data["choices"][0]["message"]["content"]
             
             parsed = self._parse_json_response(content)
-            
+
+            # Validate that we got meaningful content - fail if empty
+            if not parsed or not parsed.get("summary"):
+                logger.error(f"Perplexity returned empty/unparseable response for topic: {topic}")
+                logger.debug(f"Raw Perplexity response: {content[:1500]}")
+                raise ValueError(f"Failed to get research content for '{topic}' - API returned empty or unparseable response")
+
             # Clean citation markers like [1], [3] from Perplexity output
             def clean_citations(text):
                 if isinstance(text, str):
                     return re.sub(r'\[\d+\]', '', text).strip()
                 return text
-            
+
             # Convert links array to formatted list as clickable markdown
             links = parsed.get("links", [])
             formatted_links = []
@@ -669,7 +675,7 @@ Respond in this exact JSON format:
                     label = link.get("label", "Link")
                     url = link.get("url")
                     formatted_links.append(f"[{label}]({url})")
-            
+
             return ResearchResult(
                 title=topic,
                 summary=clean_citations(parsed.get("summary", "")),
@@ -719,7 +725,11 @@ Respond in this exact JSON format:
                     result = json.loads(json_match.group())
                 except json.JSONDecodeError:
                     logger.warning("Failed to parse JSON from model response")
+                    logger.debug(f"Raw content that failed parsing: {content[:1000]}")
                     return {}
+            else:
+                logger.warning("No JSON block found in model response")
+                logger.debug(f"Raw content without JSON: {content[:1000]}")
 
         # Validate links in key_points if present
         if 'key_points' in result and isinstance(result['key_points'], list):
